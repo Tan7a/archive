@@ -6,6 +6,9 @@ type Props = {
   onChange: (next: string[]) => void;
   suggestions?: Suggestion[];
   recents?: RecentChannel[];
+  /** Every channel title that already exists — used to dedupe the
+   * "+ Create new channel" affordance against non-recent channels. */
+  allChannels?: string[];
   /** Set once when suggestions arrive to auto-tick high-score ones. */
   autoApplyKey?: string;
 };
@@ -15,6 +18,7 @@ export default function ChannelPicker({
   onChange,
   suggestions = [],
   recents = [],
+  allChannels = [],
   autoApplyKey,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -75,18 +79,22 @@ export default function ChannelPicker({
     if (!q) return [];
     const seen = new Set<string>();
     const out: string[] = [];
-    for (const r of recents) {
-      if (r.title.toLowerCase().includes(q) && !seen.has(r.title.toLowerCase())) {
-        seen.add(r.title.toLowerCase());
-        out.push(r.title);
+    const push = (title: string) => {
+      const k = title.toLowerCase();
+      if (k.includes(q) && !seen.has(k)) {
+        seen.add(k);
+        out.push(title);
       }
-    }
+    };
+    for (const r of recents) push(r.title);
+    for (const t of allChannels) push(t);
     return out.slice(0, 15);
-  }, [q, recents]);
+  }, [q, recents, allChannels]);
 
   const exactMatch =
     q.length > 0 &&
-    recents.some((r) => r.title.toLowerCase() === q);
+    (recents.some((r) => r.title.toLowerCase() === q) ||
+      allChannels.some((t) => t.toLowerCase() === q));
 
   return (
     <div className="space-y-3">
@@ -95,7 +103,7 @@ export default function ChannelPicker({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Type to search..."
+          placeholder="Search or create a channel..."
           className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500"
         />
       </div>

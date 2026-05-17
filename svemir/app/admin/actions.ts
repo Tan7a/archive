@@ -49,8 +49,13 @@ export async function addItem(
   }
 
   const client = supabaseAdmin;
-  const { channelTitles, kind, ...rest } = data;
+  const { channelTitles, kind, body_text, ...rest } = data;
 
+  // body_text is omitted from the insert when empty so callers (and the
+  // /api/v1/blocks bearer-token route used by the Chrome extension) don't
+  // trip Supabase's schema cache when the optional 0005 migration hasn't
+  // been applied yet. When present it's stored as the page's reader text.
+  const cleanBodyText = body_text?.trim();
   const itemData = {
     ...rest,
     kind,
@@ -58,7 +63,7 @@ export async function addItem(
     source_type:
       rest.source_type?.trim() ||
       (kind === "link" && rest.url ? detectSourceType(rest.url) : "website"),
-    body_text: rest.body_text?.trim() ? rest.body_text.trim() : null,
+    ...(cleanBodyText ? { body_text: cleanBodyText } : {}),
   };
 
   const { data: inserted, error: itemErr } = await client

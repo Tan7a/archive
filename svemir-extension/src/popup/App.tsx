@@ -3,6 +3,7 @@ import ChannelPicker from "../components/ChannelPicker";
 import { extractAsset } from "../extract/extract";
 import {
   createBlock,
+  listChannels,
   listRecentChannels,
   suggestChannels,
   uploadImage,
@@ -39,6 +40,7 @@ export default function App() {
   const [asset, setAsset] = useState<ExtractedAsset | null>(null);
   const [editing, setEditing] = useState(false);
   const [recents, setRecents] = useState<RecentChannel[]>([]);
+  const [allChannels, setAllChannels] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestKey, setSuggestKey] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -112,12 +114,22 @@ export default function App() {
         }
       }
 
-      // Fetch recents in parallel with suggestion request.
+      // Recents power the visible "Recent channels" list; the full channel
+      // list is fetched in the background so the picker can detect when a
+      // typed query already exists (so "Create new" only appears for
+      // genuinely new names).
       try {
-        const r = await listRecentChannels(s);
+        const [r, all] = await Promise.all([
+          listRecentChannels(s),
+          listChannels(s).catch((e) => {
+            console.warn("all channels fetch failed:", e);
+            return [] as { id: string; slug: string; title: string }[];
+          }),
+        ]);
         setRecents(r);
+        setAllChannels(all.map((c) => c.title));
       } catch (e) {
-        console.warn("recents fetch failed:", e);
+        console.warn("channel fetches failed:", e);
       }
 
       setPhase({ kind: "ready" });
@@ -288,6 +300,7 @@ export default function App() {
         onChange={setSelected}
         suggestions={suggestions}
         recents={recents}
+        allChannels={allChannels}
         autoApplyKey={suggestKey ?? undefined}
       />
 
