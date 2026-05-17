@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ItemWithChannels } from "@/lib/types";
 import BlockActions from "./BlockActions";
+import BlockConnections from "./BlockConnections";
 
 type Props = {
   block: ItemWithChannels;
@@ -205,14 +206,14 @@ export default function BlockDetail({ block, inModal = false }: Props) {
           >
             Connections{" "}
             <span className="ml-1 text-neutral-500">
-              {block.channels.length}
+              {block.channels.length + block.connected_blocks.length}
             </span>
           </button>
         </div>
 
         <div className="text-xs">
           <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-neutral-500">Your connections</span>
+            <span className="text-neutral-500">Channels</span>
             <span className="text-neutral-600">
               {block.channels.length === 0
                 ? "—"
@@ -239,6 +240,16 @@ export default function BlockDetail({ block, inModal = false }: Props) {
             </ul>
           )}
         </div>
+
+        <BlockConnections
+          blockId={block.id}
+          initial={block.connected_blocks.map((b) => ({
+            id: b.id,
+            title: b.title,
+            image_url: b.image_url,
+            kind: b.kind,
+          }))}
+        />
 
         {!inModal && (
           <div className="mt-auto pt-6">

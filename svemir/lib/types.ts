@@ -26,6 +26,7 @@ export type Channel = {
 
 export type ItemWithChannels = Item & {
   channels: Channel[];
+  connected_blocks: Item[];
 };
 
 /**

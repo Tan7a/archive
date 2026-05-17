@@ -72,7 +72,7 @@ export default async function ManagePage({
     const channels = (connections ?? []).flatMap((c) =>
       asChannelList(c.channels)
     );
-    return { ...rest, channels };
+    return { ...rest, channels, connected_blocks: [] };
   });
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));

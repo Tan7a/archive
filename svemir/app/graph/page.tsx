@@ -31,9 +31,12 @@ export default async function GraphPage() {
     );
   }
 
-  const { data, error } = await supabase
-    .from("items")
-    .select("id, title, categories, connections(channels(id, title))");
+  const [{ data, error }, { data: edgeRows }] = await Promise.all([
+    supabase
+      .from("items")
+      .select("id, title, categories, connections(channels(id, title))"),
+    supabase.from("block_connections").select("a_id, b_id"),
+  ]);
 
   if (error) {
     return (
@@ -61,6 +64,11 @@ export default async function GraphPage() {
     }
   );
 
+  const manualEdges = (edgeRows ?? []).map((e) => ({
+    a: e.a_id as string,
+    b: e.b_id as string,
+  }));
+
   return (
     <>
       <TopBar />
@@ -69,7 +77,7 @@ export default async function GraphPage() {
           No blocks yet — add some from <code className="ml-1 rounded bg-neutral-900 px-1">/admin</code>.
         </main>
       ) : (
-        <KnowledgeGraph items={items} />
+        <KnowledgeGraph items={items} manualEdges={manualEdges} />
       )}
     </>
   );

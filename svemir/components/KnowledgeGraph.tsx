@@ -25,7 +25,9 @@ export type GraphItem = {
   category: string | null;
 };
 
-type Props = { items: GraphItem[] };
+export type ManualEdge = { a: string; b: string };
+
+type Props = { items: GraphItem[]; manualEdges?: ManualEdge[] };
 
 type GraphNode = {
   id: string;
@@ -38,13 +40,14 @@ type GraphLink = {
   source: string;
   target: string;
   value: number;
+  manual: boolean;
 };
 
 const MAX_EDGES = 4000;
 const LABEL_ZOOM_THRESHOLD = 1.4;
 const COMMON_TAG_FRACTION = 0.1; // tags on >10% of items are "too common" to be meaningful edges
 
-export default function KnowledgeGraph({ items }: Props) {
+export default function KnowledgeGraph({ items, manualEdges = [] }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<{
@@ -109,16 +112,46 @@ export default function KnowledgeGraph({ items }: Props) {
             source: items[i].id,
             target: items[j].id,
             value: overlap,
+            manual: false,
           });
         }
       }
     }
 
-    // Cap to highest-weight edges to keep render fast
+    // Cap to highest-weight edges to keep render fast. Manual block↔block
+    // edges are curatorial — always render them, on top of the channel-overlap
+    // edges, with stronger weight so they read as deliberate.
     candidates.sort((a, b) => b.value - a.value);
-    const links = candidates.slice(0, MAX_EDGES);
-    return { nodes, links };
-  }, [items, minOverlap, hideCommon, commonTagIds]);
+    const overlapLinks = candidates.slice(0, MAX_EDGES);
+
+    const validIds = new Set(items.map((i) => i.id));
+    const edgeKey = (s: string, t: string) =>
+      s < t ? `${s}|${t}` : `${t}|${s}`;
+    const byKey = new Map<string, GraphLink>();
+    for (const l of overlapLinks) {
+      byKey.set(edgeKey(l.source, l.target), l);
+    }
+    for (const me of manualEdges) {
+      if (!validIds.has(me.a) || !validIds.has(me.b)) continue;
+      const k = edgeKey(me.a, me.b);
+      const existing = byKey.get(k);
+      if (existing) {
+        byKey.set(k, {
+          ...existing,
+          manual: true,
+          value: Math.max(existing.value, 5),
+        });
+      } else {
+        byKey.set(k, {
+          source: me.a,
+          target: me.b,
+          value: 5,
+          manual: true,
+        });
+      }
+    }
+    return { nodes, links: Array.from(byKey.values()) };
+  }, [items, minOverlap, hideCommon, commonTagIds, manualEdges]);
 
   // Tune force simulation for spreading the graph out more
   useEffect(() => {
@@ -185,9 +218,15 @@ export default function KnowledgeGraph({ items }: Props) {
             const tagsToShow = node.tags.slice(0, 12);
             return `<div style="background:#111;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;max-width:280px;line-height:1.4"><div style="font-weight:600;margin-bottom:4px">${escapeHtml(node.name)}</div>${tagsToShow.length > 0 ? `<div style="opacity:.7;font-size:11px">${tagsToShow.map((t) => "#" + escapeHtml(t)).join(" ")}${node.tags.length > tagsToShow.length ? " …" : ""}</div>` : ""}</div>`;
           }}
-          linkColor={() => "rgba(255,255,255,0.12)"}
+          linkColor={(raw: unknown) => {
+            const l = raw as GraphLink;
+            return l.manual
+              ? "rgba(232,232,232,0.55)"
+              : "rgba(255,255,255,0.12)";
+          }}
           linkWidth={(raw: unknown) => {
             const l = raw as GraphLink;
+            if (l.manual) return Math.min(1.5 + l.value * 0.3, 3.5);
             return Math.min(0.5 + l.value * 0.4, 3);
           }}
           onNodeClick={(raw: unknown) => {

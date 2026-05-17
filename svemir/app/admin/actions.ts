@@ -566,6 +566,54 @@ export async function scrapeAndUpdateItem(
   }
 }
 
+/**
+ * Manual curatorial edge between two blocks. Persisted in `block_connections`
+ * with a canonical `a_id < b_id` ordering (enforced by the table's CHECK).
+ * Used by the Connected-blocks picker in the block detail sidebar; the
+ * knowledge graph renders these as always-on edges, independent of the
+ * channel-overlap heuristic.
+ */
+export async function connectBlocks(
+  aId: string,
+  bId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!supabaseAdmin) {
+    return { success: false, error: "Supabase admin not configured" };
+  }
+  if (aId === bId) {
+    return { success: false, error: "A block can't be connected to itself." };
+  }
+  const [a, b] = aId < bId ? [aId, bId] : [bId, aId];
+  const { error } = await supabaseAdmin
+    .from("block_connections")
+    .upsert({ a_id: a, b_id: b }, { onConflict: "a_id,b_id" });
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/graph");
+  revalidatePath(`/block/${aId}`);
+  revalidatePath(`/block/${bId}`);
+  return { success: true };
+}
+
+export async function disconnectBlocks(
+  aId: string,
+  bId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!supabaseAdmin) {
+    return { success: false, error: "Supabase admin not configured" };
+  }
+  const [a, b] = aId < bId ? [aId, bId] : [bId, aId];
+  const { error } = await supabaseAdmin
+    .from("block_connections")
+    .delete()
+    .eq("a_id", a)
+    .eq("b_id", b);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/graph");
+  revalidatePath(`/block/${aId}`);
+  revalidatePath(`/block/${bId}`);
+  return { success: true };
+}
+
 export async function deleteChannel(
   channelId: string
 ): Promise<{ success: true } | { success: false; error: string }> {

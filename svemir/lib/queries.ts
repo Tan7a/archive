@@ -35,5 +35,27 @@ export async function getBlockWithChannels(
   const channels = (connections ?? []).flatMap((c) =>
     asChannelList(c.channels)
   );
-  return { ...rest, channels };
+
+  // Manual block↔block connections live in `block_connections` with a
+  // canonical (a_id < b_id) ordering. Pull every edge touching this block,
+  // resolve the "other" id, then fetch the corresponding items.
+  const { data: edgeRows } = await supabase
+    .from("block_connections")
+    .select("a_id, b_id")
+    .or(`a_id.eq.${id},b_id.eq.${id}`);
+
+  const otherIds = (edgeRows ?? []).map((e) =>
+    (e.a_id as string) === id ? (e.b_id as string) : (e.a_id as string)
+  );
+
+  let connected_blocks: Item[] = [];
+  if (otherIds.length > 0) {
+    const { data: blocks } = await supabase
+      .from("items")
+      .select("*")
+      .in("id", otherIds);
+    connected_blocks = (blocks ?? []) as Item[];
+  }
+
+  return { ...rest, channels, connected_blocks };
 }
